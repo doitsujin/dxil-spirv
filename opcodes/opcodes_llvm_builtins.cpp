@@ -134,6 +134,7 @@ bool emit_binary_instruction(Converter::Impl &impl, const llvm::BinaryOperator *
 	bool signed_input = false;
 	bool is_width_sensitive = false;
 	bool is_precision_sensitive = false;
+	bool can_relax_precision = false;
 	spv::Op opcode;
 
 	switch (instruction->getOpcode())
@@ -141,16 +142,19 @@ bool emit_binary_instruction(Converter::Impl &impl, const llvm::BinaryOperator *
 	case llvm::BinaryOperator::BinaryOps::FAdd:
 		opcode = spv::OpFAdd;
 		is_precision_sensitive = true;
+		can_relax_precision = true;
 		break;
 
 	case llvm::BinaryOperator::BinaryOps::FSub:
 		opcode = spv::OpFSub;
 		is_precision_sensitive = true;
+		can_relax_precision = true;
 		break;
 
 	case llvm::BinaryOperator::BinaryOps::FMul:
 		opcode = spv::OpFMul;
 		is_precision_sensitive = true;
+		can_relax_precision = true;
 		if (peephole_trivial_arithmetic_identity(impl, instruction, llvm::BinaryOperator::BinaryOps::FDiv, true))
 			return true;
 		break;
@@ -158,6 +162,7 @@ bool emit_binary_instruction(Converter::Impl &impl, const llvm::BinaryOperator *
 	case llvm::BinaryOperator::BinaryOps::FDiv:
 		opcode = spv::OpFDiv;
 		is_precision_sensitive = true;
+		can_relax_precision = true;
 		if (peephole_trivial_arithmetic_identity(impl, instruction, llvm::BinaryOperator::BinaryOps::FMul, false))
 			return true;
 		break;
@@ -209,6 +214,7 @@ bool emit_binary_instruction(Converter::Impl &impl, const llvm::BinaryOperator *
 	case llvm::BinaryOperator::BinaryOps::FRem:
 		opcode = spv::OpFRem;
 		is_precision_sensitive = true;
+		can_relax_precision = true;
 		break;
 
 	case llvm::BinaryOperator::BinaryOps::URem:
@@ -285,6 +291,10 @@ bool emit_binary_instruction(Converter::Impl &impl, const llvm::BinaryOperator *
 	impl.add(op);
 	if (is_precision_sensitive && !instruction->isFast())
 		impl.builder().addDecoration(op->id, spv::DecorationNoContraction);
+
+	// Only bother relaxing FP, since Integers are murky w.r.t. signage in DXIL.
+	if (can_relax_precision)
+		impl.decorate_relaxed_precision(instruction->getType(), op->id, false);
 	return true;
 }
 
@@ -305,6 +315,7 @@ bool emit_unary_instruction(Converter::Impl &impl, const llvm::UnaryOperator *in
 
 	Operation *op = impl.allocate(opcode, instruction);
 	op->add_id(impl.get_id_for_value(instruction->getOperand(0)));
+	impl.decorate_relaxed_precision(instruction->getType(), op->id, false);
 
 	impl.add(op);
 	return true;
@@ -415,6 +426,7 @@ static spv::Id emit_boolean_convert_instruction(Converter::Impl &impl, const Ins
 	op->add_id(impl.get_id_for_value(instruction->getOperand(0)));
 	op->add_ids({ const_1, const_0 });
 	impl.add(op);
+	impl.decorate_relaxed_precision(instruction->getType(), op->id, false);
 	return op->id;
 }
 
@@ -503,8 +515,9 @@ static bool value_cast_is_noop(Converter::Impl &impl, const InstructionType *ins
 template <typename InstructionType>
 static spv::Id emit_cast_instruction_impl(Converter::Impl &impl, const InstructionType *instruction)
 {
-	spv::Op opcode;
+	bool can_relax_precision = false;
 	bool signed_input = false;
+	spv::Op opcode;
 
 	if (value_cast_is_noop(impl, instruction))
 	{
@@ -547,6 +560,8 @@ static spv::Id emit_cast_instruction_impl(Converter::Impl &impl, const Instructi
 	case llvm::Instruction::CastOps::FPTrunc:
 	case llvm::Instruction::CastOps::FPExt:
 		opcode = spv::OpFConvert;
+		// Relaxing precision on integers in DXIL is very sketchy, so don't bother.
+		can_relax_precision = true;
 		break;
 
 	case llvm::Instruction::CastOps::FPToUI:
@@ -617,6 +632,8 @@ static spv::Id emit_cast_instruction_impl(Converter::Impl &impl, const Instructi
 		Operation *op = impl.allocate(opcode, instruction);
 		op->add_id(build_naturally_extended_value(impl, instruction->getOperand(0), signed_input));
 		impl.add(op);
+		if (can_relax_precision)
+			impl.decorate_relaxed_precision(instruction->getType(), op->id, false);
 		return op->id;
 	}
 }
@@ -1047,6 +1064,7 @@ bool emit_extract_value_instruction(Converter::Impl &impl, const llvm::ExtractVa
 			op->add_literal(instruction->getIndices()[i]);
 
 		impl.add(op);
+		impl.decorate_relaxed_precision(instruction->getType(), op->id, false);
 	}
 
 	return true;
@@ -1085,6 +1103,7 @@ bool emit_alloca_instruction(Converter::Impl &impl, const llvm::AllocaInst *inst
 	spv::Id var_id = impl.create_variable(storage, pointee_type_id);
 	impl.rewrite_value(instruction, var_id);
 	impl.handle_to_storage_class[instruction] = storage;
+	impl.decorate_relaxed_precision(element_type, var_id, false);
 	return true;
 }
 
@@ -1099,6 +1118,7 @@ bool emit_select_instruction(Converter::Impl &impl, const llvm::SelectInst *inst
 	});
 
 	impl.add(op);
+	impl.decorate_relaxed_precision(instruction->getType(), op->id, false);
 	return true;
 }
 
@@ -1221,12 +1241,14 @@ bool emit_shufflevector_instruction(Converter::Impl &impl, const llvm::ShuffleVe
 
 bool emit_extractelement_instruction(Converter::Impl &impl, const llvm::ExtractElementInst *inst)
 {
+	spv::Id id;
 	if (auto *constant_int = llvm::dyn_cast<llvm::ConstantInt>(inst->getIndexOperand()))
 	{
 		Operation *op = impl.allocate(spv::OpCompositeExtract, inst);
 		op->add_id(impl.get_id_for_value(inst->getVectorOperand()));
 		op->add_literal(uint32_t(constant_int->getUniqueInteger().getZExtValue()));
 		impl.add(op);
+		id = op->id;
 	}
 	else
 	{
@@ -1234,7 +1256,9 @@ bool emit_extractelement_instruction(Converter::Impl &impl, const llvm::ExtractE
 		op->add_id(impl.get_id_for_value(inst->getVectorOperand()));
 		op->add_id(impl.get_id_for_value(inst->getIndexOperand()));
 		impl.add(op);
+		id = op->id;
 	}
+	impl.decorate_relaxed_precision(inst->getType(), id, false);
 	return true;
 }
 

@@ -54,6 +54,7 @@ struct PHI
 {
 	uint32_t id = 0;
 	uint32_t type_id = 0;
+	bool relaxed = false;
 	Vector<IncomingValue> incoming;
 };
 

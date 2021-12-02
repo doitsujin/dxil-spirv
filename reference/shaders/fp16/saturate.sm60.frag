@@ -5,10 +5,10 @@ layout(location = 0) out mediump vec4 SV_Target;
 
 void main()
 {
-    float _39 = isnan(0.0) ? V.x : (isnan(V.x) ? 0.0 : max(V.x, 0.0));
-    float _50 = isnan(0.0) ? V.y : (isnan(V.y) ? 0.0 : max(V.y, 0.0));
-    float _61 = isnan(0.0) ? V.z : (isnan(V.z) ? 0.0 : max(V.z, 0.0));
-    float _72 = isnan(0.0) ? V.w : (isnan(V.w) ? 0.0 : max(V.w, 0.0));
+    mediump float _39 = isnan(0.0) ? V.x : (isnan(V.x) ? 0.0 : max(V.x, 0.0));
+    mediump float _50 = isnan(0.0) ? V.y : (isnan(V.y) ? 0.0 : max(V.y, 0.0));
+    mediump float _61 = isnan(0.0) ? V.z : (isnan(V.z) ? 0.0 : max(V.z, 0.0));
+    mediump float _72 = isnan(0.0) ? V.w : (isnan(V.w) ? 0.0 : max(V.w, 0.0));
     SV_Target.x = isnan(1.0) ? _39 : (isnan(_39) ? 1.0 : min(_39, 1.0));
     SV_Target.y = isnan(1.0) ? _50 : (isnan(_50) ? 1.0 : min(_50, 1.0));
     SV_Target.z = isnan(1.0) ? _61 : (isnan(_61) ? 1.0 : min(_61, 1.0));
@@ -35,6 +35,10 @@ OpDecorate %8 RelaxedPrecision
 OpDecorate %8 Location 0
 OpDecorate %10 RelaxedPrecision
 OpDecorate %10 Location 0
+OpDecorate %28 RelaxedPrecision
+OpDecorate %29 RelaxedPrecision
+OpDecorate %30 RelaxedPrecision
+OpDecorate %31 RelaxedPrecision
 %1 = OpTypeVoid
 %2 = OpTypeFunction %1
 %5 = OpTypeFloat 32

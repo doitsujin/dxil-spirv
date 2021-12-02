@@ -81,6 +81,7 @@ OpDecorate %14 Location 0
 OpMemberDecorate %25 0 Offset 0
 OpDecorate %25 Block
 OpMemberDecorate %25 0 NonWritable
+OpDecorate %56 RelaxedPrecision
 OpMemberDecorate %57 0 Offset 0
 OpDecorate %57 Block
 %1 = OpTypeVoid

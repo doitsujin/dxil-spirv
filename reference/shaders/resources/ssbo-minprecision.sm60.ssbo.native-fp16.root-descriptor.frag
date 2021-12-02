@@ -119,6 +119,7 @@ OpDecorate %18 Location 0
 OpMemberDecorate %34 0 Offset 0
 OpDecorate %34 Block
 OpMemberDecorate %34 0 NonWritable
+OpDecorate %70 RelaxedPrecision
 OpMemberDecorate %71 0 Offset 0
 OpDecorate %71 Block
 OpMemberDecorate %94 0 Offset 0

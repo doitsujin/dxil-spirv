@@ -256,6 +256,9 @@ bool emit_sample_instruction(DXIL::Op opcode, Converter::Impl &impl, const llvm:
 	// Comparison sampling only returns a scalar, so we'll need to splat out result.
 	Operation *op = impl.allocate(spv_op, instruction, sample_type);
 
+	if (!sparse)
+		impl.decorate_relaxed_precision(instruction->getType()->getStructElementType(0), op->id, true);
+
 	op->add_id(combined_image_sampler_id);
 	op->add_id(impl.build_vector(builder.makeFloatType(32), coord, num_coords_full));
 
@@ -360,6 +363,9 @@ bool emit_sample_grad_instruction(Converter::Impl &impl, const llvm::CallInst *i
 		impl.allocate(sparse ? spv::OpImageSparseSampleExplicitLod : spv::OpImageSampleExplicitLod,
 		              instruction, sample_type);
 
+	if (!sparse)
+		impl.decorate_relaxed_precision(instruction->getType()->getStructElementType(0), op->id, true);
+
 	op->add_ids({
 	    combined_image_sampler_id,
 	    impl.build_vector(builder.makeFloatType(32), coord, num_coords_full),
@@ -451,6 +457,8 @@ bool emit_texture_load_instruction(Converter::Impl &impl, const llvm::CallInst *
 		opcode = sparse ? spv::OpImageSparseFetch : spv::OpImageFetch;
 
 	Operation *op = impl.allocate(opcode, instruction, sample_type);
+	if (!sparse)
+		impl.decorate_relaxed_precision(instruction->getType()->getStructElementType(0), op->id, true);
 
 	op->add_ids({ image_id, impl.build_vector(builder.makeUintType(32), coord, num_coords_full) });
 	op->add_literal(image_ops);
@@ -727,6 +735,8 @@ bool emit_texture_gather_instruction(bool compare, Converter::Impl &impl, const 
 		opcode = sparse ? spv::OpImageSparseGather : spv::OpImageGather;
 
 	Operation *op = impl.allocate(opcode, instruction, sample_type);
+	if (!sparse)
+		impl.decorate_relaxed_precision(instruction->getType()->getStructElementType(0), op->id, true);
 
 	op->add_ids({ combined_image_sampler_id, coord_id, aux_id });
 
