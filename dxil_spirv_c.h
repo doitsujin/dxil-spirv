@@ -320,6 +320,7 @@ typedef enum dxil_spv_option
 	DXIL_SPV_OPTION_SHADER_RAY_TRACING_PRIMITIVE_CULLING = 18,
 	DXIL_SPV_OPTION_INVARIANT_POSITION = 19,
 	DXIL_SPV_OPTION_SCALAR_BLOCK_LAYOUT = 20,
+  DXIL_SPV_OPTION_UAV_3D_AS_2D_ARRAY = 21,
 	DXIL_SPV_OPTION_INT_MAX = 0x7fffffff
 } dxil_spv_option;
 
@@ -475,6 +476,12 @@ typedef struct dxil_spv_option_scalar_block_layout
 	dxil_spv_bool supported;
 	dxil_spv_bool supports_per_component_robustness;
 } dxil_spv_option_scalar_block_layout;
+
+typedef struct dxil_spv_option_uav_3d_as_2d_array
+{
+	dxil_spv_option_base base;
+	dxil_spv_bool enabled;
+} dxil_spv_option_uav_3d_as_2d_array;
 
 /* Gets the ABI version used to build this library. Used to detect API/ABI mismatches. */
 DXIL_SPV_PUBLIC_API void dxil_spv_get_version(unsigned *major, unsigned *minor, unsigned *patch);

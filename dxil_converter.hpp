@@ -220,6 +220,8 @@ enum class Option : uint32_t
 	ShaderRayTracingPrimitiveCulling = 18,
 	InvariantPosition = 19,
 	ScalarBlockLayout = 20,
+  Uav3DAs2DArray = 21,
+  
 	Count
 };
 
@@ -444,6 +446,16 @@ struct OptionScalarBlockLayout : OptionBase
 
 	bool supported = false;
 	bool supports_per_component_robustness = false;
+};
+
+struct OptionUav3DAs2DArray : OptionBase
+{
+	OptionUav3DAs2DArray()
+		: OptionBase(Option::Uav3DAs2DArray)
+	{
+	}
+
+	bool enabled = false;
 };
 
 struct DescriptorTableEntry

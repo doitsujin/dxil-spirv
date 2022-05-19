@@ -131,7 +131,7 @@ static dxil_spv::String get_string_metadata(const llvm::MDNode *node, unsigned i
 #endif
 }
 
-static spv::Dim image_dimension_from_resource_kind(DXIL::ResourceKind kind)
+static spv::Dim image_dimension_from_resource_kind(DXIL::ResourceKind kind, bool use_3d_as_2d_array)
 {
 	switch (kind)
 	{
@@ -144,7 +144,7 @@ static spv::Dim image_dimension_from_resource_kind(DXIL::ResourceKind kind)
 	case DXIL::ResourceKind::Texture2DMSArray:
 		return spv::Dim2D;
 	case DXIL::ResourceKind::Texture3D:
-		return spv::Dim3D;
+		return use_3d_as_2d_array ? spv::Dim3D : spv::Dim2D;
 	case DXIL::ResourceKind::TextureCube:
 	case DXIL::ResourceKind::TextureCubeArray:
 		return spv::DimCube;
@@ -159,7 +159,7 @@ static spv::Dim image_dimension_from_resource_kind(DXIL::ResourceKind kind)
 	}
 }
 
-static bool image_dimension_is_arrayed(DXIL::ResourceKind kind)
+static bool image_dimension_is_arrayed(DXIL::ResourceKind kind, bool use_3d_as_2d_array)
 {
 	switch (kind)
 	{
@@ -168,6 +168,9 @@ static bool image_dimension_is_arrayed(DXIL::ResourceKind kind)
 	case DXIL::ResourceKind::Texture2DMSArray:
 	case DXIL::ResourceKind::TextureCubeArray:
 		return true;
+
+	case DXIL::ResourceKind::Texture3D:
+    return use_3d_as_2d_array;
 
 	default:
 		return false;
@@ -443,8 +446,8 @@ spv::Id Converter::Impl::create_bindless_heap_variable(const BindlessInfo &info)
 				}
 
 				spv::Id sampled_type_id = get_type_id(info.component, 1, 1);
-				type_id = builder().makeImageType(sampled_type_id, image_dimension_from_resource_kind(info.kind), false,
-				                                  image_dimension_is_arrayed(info.kind),
+				type_id = builder().makeImageType(sampled_type_id, image_dimension_from_resource_kind(info.kind, false), false,
+				                                  image_dimension_is_arrayed(info.kind, false),
 				                                  image_dimension_is_multisampled(info.kind), 1, spv::ImageFormatUnknown);
 				type_id = builder().makeRuntimeArray(type_id);
 				storage = spv::StorageClassUniformConstant;
@@ -508,8 +511,8 @@ spv::Id Converter::Impl::create_bindless_heap_variable(const BindlessInfo &info)
 				}
 
 				spv::Id sampled_type_id = get_type_id(info.component, 1, 1);
-				type_id = builder().makeImageType(sampled_type_id, image_dimension_from_resource_kind(info.kind), false,
-				                                  image_dimension_is_arrayed(info.kind),
+				type_id = builder().makeImageType(sampled_type_id, image_dimension_from_resource_kind(info.kind, options.uav_3d_as_2d_array), false,
+				                                  image_dimension_is_arrayed(info.kind, options.uav_3d_as_2d_array),
 				                                  image_dimension_is_multisampled(info.kind), 2, info.format);
 				type_id = builder().makeRuntimeArray(type_id);
 				storage = spv::StorageClassUniformConstant;
@@ -1141,8 +1144,8 @@ bool Converter::Impl::emit_srvs(const llvm::MDNode *srvs)
 			else
 			{
 				type_id =
-				    builder.makeImageType(sampled_type_id, image_dimension_from_resource_kind(resource_kind), false,
-				                          image_dimension_is_arrayed(resource_kind),
+				    builder.makeImageType(sampled_type_id, image_dimension_from_resource_kind(resource_kind, false), false,
+				                          image_dimension_is_arrayed(resource_kind, false),
 				                          image_dimension_is_multisampled(resource_kind), 1, spv::ImageFormatUnknown);
 				if (range_size != 1)
 				{
@@ -1718,8 +1721,8 @@ bool Converter::Impl::emit_uavs(const llvm::MDNode *uavs)
 				auto element_type_id = get_type_id(effective_component_type, 1, 1);
 
 				spv::Id type_id =
-				    builder.makeImageType(element_type_id, image_dimension_from_resource_kind(resource_kind), false,
-				                          image_dimension_is_arrayed(resource_kind),
+				    builder.makeImageType(element_type_id, image_dimension_from_resource_kind(resource_kind, options.uav_3d_as_2d_array), false,
+				                          image_dimension_is_arrayed(resource_kind, options.uav_3d_as_2d_array),
 				                          image_dimension_is_multisampled(resource_kind), 2, format);
 
 				if (range_size != 1)
@@ -1778,8 +1781,8 @@ bool Converter::Impl::emit_uavs(const llvm::MDNode *uavs)
 				auto element_type_id = get_type_id(DXIL::ComponentType::U32, 1, 1);
 
 				spv::Id type_id =
-					builder.makeImageType(element_type_id, image_dimension_from_resource_kind(resource_kind), false,
-					                      image_dimension_is_arrayed(resource_kind),
+					builder.makeImageType(element_type_id, image_dimension_from_resource_kind(resource_kind, options.uav_3d_as_2d_array), false,
+					                      image_dimension_is_arrayed(resource_kind, options.uav_3d_as_2d_array),
 					                      image_dimension_is_multisampled(resource_kind), 2, format);
 
 				counter_var_id = create_variable(spv::StorageClassUniformConstant, type_id,
@@ -5858,6 +5861,11 @@ void Converter::Impl::set_option(const OptionBase &cap)
 		    static_cast<const OptionScalarBlockLayout &>(cap).supported;
 		options.supports_per_component_robustness =
 		    static_cast<const OptionScalarBlockLayout &>(cap).supports_per_component_robustness;
+		break;
+
+	case Option::Uav3DAs2DArray:
+		options.uav_3d_as_2d_array =
+		    static_cast<const OptionUav3DAs2DArray &>(cap).enabled;
 		break;
 
 	default:
